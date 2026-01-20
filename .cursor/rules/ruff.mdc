@@ -1,0 +1,5 @@
+---
+alwaysApply: true
+---
+- When you change Python code, run `ruff check --fix .` and `ruff format .`.
+- If Ruff is unavailable, say so and describe what would be fixed.
