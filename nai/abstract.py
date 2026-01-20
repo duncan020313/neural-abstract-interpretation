@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import torch
 
@@ -21,12 +21,21 @@ from .neural_domain import NeuralDomain
 
 STMT_KINDS = ["assign", "call", "return", "noop"]
 EXPR_KINDS = ["int", "bool", "var", "binop", "unary"]
-EXPR_OPS = ["+", "-", "*", "==", "<", "<=", "&&", "||", "!", "neg"]
+EXPR_OPS = ["+", "-", "*", "/", "%", "==", "<", "<=", "&&", "||", "!", "neg"]
 
 
 @dataclass(frozen=True)
 class AbstractResult:
     states: Dict[str, Dict[int, List[float]]]
+
+
+def create_domain(*, variables: List[str], hidden_dim: int = 16) -> NeuralDomain:
+    return NeuralDomain(
+        env_dim=len(variables),
+        stmt_dim=len(STMT_KINDS),
+        expr_dim=len(EXPR_KINDS) + len(EXPR_OPS),
+        hidden_dim=hidden_dim,
+    )
 
 
 def run_abstract(
@@ -37,13 +46,30 @@ def run_abstract(
     eps: float = 1e-3,
     beta: float = 0.5,
 ) -> AbstractResult:
-    domain = NeuralDomain(
-        env_dim=len(variables),
-        stmt_dim=len(STMT_KINDS),
-        expr_dim=len(EXPR_KINDS) + len(EXPR_OPS),
+    result, _domain, _tensor_states = run_abstract_with_domain(
+        cfg=cfg,
+        variables=variables,
         hidden_dim=hidden_dim,
+        max_iters=max_iters,
+        eps=eps,
+        beta=beta,
     )
+    return result
+
+
+def run_abstract_with_domain(
+    cfg: CFG,
+    variables: List[str],
+    hidden_dim: int = 16,
+    max_iters: int = 20,
+    eps: float = 1e-3,
+    beta: float = 0.5,
+    domain: Optional[NeuralDomain] = None,
+) -> Tuple[AbstractResult, NeuralDomain, Dict[str, Dict[int, torch.Tensor]]]:
+    if domain is None:
+        domain = create_domain(variables=variables, hidden_dim=hidden_dim)
     results: Dict[str, Dict[int, List[float]]] = {}
+    tensor_states: Dict[str, Dict[int, torch.Tensor]] = {}
     with torch.no_grad():
         for func_name, func_cfg in cfg.functions.items():
             states = _analyze_function(
@@ -53,10 +79,11 @@ def run_abstract(
                 eps=eps,
                 beta=beta,
             )
+            tensor_states[func_name] = states
             results[func_name] = {
                 node_id: state.tolist() for node_id, state in states.items()
             }
-    return AbstractResult(states=results)
+    return AbstractResult(states=results), domain, tensor_states
 
 
 def _analyze_function(
@@ -203,3 +230,11 @@ def _expr_op(expr: Expr) -> str:
     if isinstance(expr, UnaryOp):
         return "!" if expr.op == "!" else "neg"
     return ""
+
+
+def encode_stmt(stmt) -> torch.Tensor:
+    return _encode_stmt(stmt)
+
+
+def encode_expr(expr: Expr) -> torch.Tensor:
+    return _encode_expr(expr)

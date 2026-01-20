@@ -1,0 +1,29 @@
+{
+  "source": "examples/div_zero.c",
+  "findings": [
+    {
+      "function": "main",
+      "location": {
+        "line": 14,
+        "column": 7,
+        "end_line": 14,
+        "end_column": 12
+      },
+      "expr": "(x / y)",
+      "path_condition": [],
+      "confidence": 0.37926310300827026
+    },
+    {
+      "function": "main",
+      "location": {
+        "line": 15,
+        "column": 3,
+        "end_line": 15,
+        "end_column": 9
+      },
+      "expr": "(y % z)",
+      "path_condition": [],
+      "confidence": 0.28890612721443176
+    }
+  ]
+}

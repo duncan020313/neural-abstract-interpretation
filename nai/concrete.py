@@ -46,6 +46,7 @@ class ConcreteResult:
     trace: List[TraceEvent]
     steps: int
     halted: bool
+    error: Optional[str] = None
 
 
 def eval_expr(expr: Expr, env: Dict[str, Value]) -> Value:
@@ -73,6 +74,10 @@ def eval_expr(expr: Expr, env: Dict[str, Value]) -> Value:
             return int(left) - int(right)
         if expr.op == "*":
             return int(left) * int(right)
+        if expr.op == "/":
+            return int(left) // int(right)
+        if expr.op == "%":
+            return int(left) % int(right)
         if expr.op == "==":
             return left == right
         if expr.op == "<":
@@ -105,15 +110,22 @@ def run_concrete(
     )
     trace: List[TraceEvent] = []
     steps = 0
+    error: Optional[str] = None
     while state.pc is not None and steps < max_steps:
         func_cfg = cfg.functions[state.function]
         node = func_cfg.nodes[state.pc]
         trace.append(
             TraceEvent(function=state.function, pc=state.pc, env=dict(state.env))
         )
-        state = _step(cfg, state, node)
+        try:
+            state = _step(cfg, state, node)
+        except Exception as exc:
+            error = f"{type(exc).__name__}: {exc}"
+            break
         steps += 1
-    return ConcreteResult(trace=trace, steps=steps, halted=state.pc is None)
+    return ConcreteResult(
+        trace=trace, steps=steps, halted=(state.pc is None), error=error
+    )
 
 
 def _step(cfg: CFG, state: ConcreteState, node: CFGNode) -> ConcreteState:
